@@ -1,0 +1,126 @@
+
+Encrypt VFS Test
+ - December 1, 2012
+ - hjkim
+
+
+
+// ------------------------------------------------
+// Encrypt VFS
+// - USE losetup
+// ------------------------------------------------
+
+[Checks relevant modules]
+root@hjkim-VirtualBox:/mnt# lsmod | grep -E "Module|cryptoloop|aes"
+Module                  Size  Used by
+aes_i586               16956  0 
+cryptoloop             12570  0
+ 
+root@hjkim-VirtualBox:/work/vfs# modprobe cryptoloop
+root@hjkim-VirtualBox:/work/vfs# modprobe aes
+
+
+[Makes VFS File]
+root@hjkim-VirtualBox:/work/vfs# dd if=/dev/zero of=vfs_test bs=1024 count=64
+64+0 records in
+64+0 records out
+65536 bytes (66 kB) copied, 0.000302751 s, 216 MB/s
+
+
+[losetup]
+root@hjkim-VirtualBox:/work/vfs# losetup -e aes /dev/loop1 vfs_test
+Password: 
+
+
+[Makes File System]
+root@hjkim-VirtualBox:/work/vfs# mkfs -t vfat /dev/loop1
+mkfs.vfat 3.0.9 (31 Jan 2010)
+Loop device does not match a floppy size, using default hd params
+
+
+[Mount & Unmount]
+root@hjkim-VirtualBox:/work/vfs# mount /dev/loop1 /mnt/test
+root@hjkim-VirtualBox:/work/vfs# umount /mnt/test
+root@hjkim-VirtualBox:/work/vfs# losetup -d /dev/loop1
+root@hjkim-VirtualBox:/work/vfs# losetup -a
+
+
+
+// ------------------------------------------------
+// Encrypt VFS
+// - USE cryptsetup
+// ------------------------------------------------
+
+[Checks relevant modules]
+root@hjkim-VirtualBox:/mnt# lsmod | grep -E "Module|cryptoloop|aes|dm"
+Module                  Size  Used by
+dm_crypt               22565  0 
+aes_i586               16956  0 
+cryptoloop             12570  0
+ 
+root@hjkim-VirtualBox:/work/vfs# modprobe cryptoloop
+root@hjkim-VirtualBox:/work/vfs# modprobe aes
+root@hjkim-VirtualBox:/work/vfs# modprobe dm-crypt
+
+
+[NOTE]
+ - cryptsetup Error: VFS file is too small
+device-mapper: resume ioctl failed: Invalid argument
+Failed to setup dm-crypt key mapping for device /dev/loop1.
+Check that kernel supports aes-cbc-plain cipher (check syslog for more info).
+
+
+[Makes VFS File]
+root@hjkim-VirtualBox:/work/vfs# dd if=/dev/urandom of=vfs_test2 bs=1024 count=5120
+5+0 records in
+5+0 records out
+5242880 bytes (5.2 MB) copied, 0.793937 s, 6.6 MB/s
+
+
+[losetup]
+root@hjkim-VirtualBox:/work/vfs# losetup /dev/loop1 vfs_test2 
+root@hjkim-VirtualBox:/work/vfs# losetup -a
+/dev/loop1: [0805]:23670 (/work/vfs/vfs_test2)
+
+
+[Encryption]
+root@hjkim-VirtualBox:/work/vfs# cryptsetup luksFormat -c aes -s 256 /dev/loop1
+
+WARNING!
+========
+This will overwrite data on /dev/loop1 irrevocably.
+
+Are you sure? (Type uppercase yes): YES
+Enter LUKS passphrase: 
+Verify passphrase: 
+root@hjkim-VirtualBox:/work/vfs# cryptsetup luksOpen /dev/loop1 vfstest2
+Enter passphrase for /dev/loop1: 
+root@hjkim-VirtualBox:/work/vfs# cryptsetup status vfstest2
+/dev/mapper/vfstest2 is active:
+  cipher:  aes-cbc-plain
+  keysize: 256 bits
+  device:  /dev/loop1
+  offset:  2056 sectors
+  size:    8184 sectors
+  mode:    read/write
+
+
+[Makes File System]
+root@hjkim-VirtualBox:/work/vfs# mkfs -t vfat /dev/mapper/vfstest2 
+mkfs.vfat 3.0.9 (31 Jan 2010)
+unable to get drive geometry, using default 255/63
+
+
+[Mount & Unmount]
+root@hjkim-VirtualBox:/work/vfs# mount -t vfat /dev/mapper/vfstest2 /mnt/test
+root@hjkim-VirtualBox:/work/vfs# umount /mnt/test 
+root@hjkim-VirtualBox:/work/vfs# cryptsetup luksClose vfstest2 
+root@hjkim-VirtualBox:/work/vfs# cryptsetup status vfstest2
+/dev/mapper/vfstest2 is inactive.
+root@hjkim-VirtualBox:/work/vfs# losetup -d /dev/loop1
+root@hjkim-VirtualBox:/work/vfs# losetup -a
+root@hjkim-VirtualBox:/work/vfs# 
+
+
+
+__EOF__
