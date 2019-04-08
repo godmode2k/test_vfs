@@ -1,5 +1,5 @@
 test_vfs
 ========
 
-> Single-file VFS read/write (FAT16 Only currently)
-> Encrypt VFS
+> Single-file VFS read/write (FAT16 Only currently) <br>
+> Encrypt VFS <br>
